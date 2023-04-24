@@ -2,9 +2,10 @@ import pymysql
 
 
 class SQLClient:
-    def __init__(self, host, user, password, database, charset='utf8mb4'):
+    def __init__(self, host, user, password, database, port=3306, charset='utf8mb4'):
         self.host = host
         self.user = user
+        self.port = port
         self.password = password
         self.database = database
         self.charset = charset
@@ -15,6 +16,7 @@ class SQLClient:
         try:
             self.conn = pymysql.connect(
                 host=self.host,
+                port=self.port,
                 user=self.user,
                 password=self.password,
                 database=self.database,

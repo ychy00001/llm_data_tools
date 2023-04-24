@@ -12,4 +12,4 @@ else:
 load_dotenv(os.path.join(rootdir, ".env"))
 
 MYSQL_HOST = os.getenv("MYSQL_HOST", "127.0.0.1")
-MYSQL_PORT = os.getenv("MYSQL_PORT", "6379")
+MYSQL_PORT = int(os.getenv("MYSQL_PORT", "6379"))
