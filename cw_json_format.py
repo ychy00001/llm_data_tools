@@ -3,10 +3,11 @@ import json
 import random
 import sys
 from service.chat_prompt_service import ChatPromptService
+import common.filter as filter
 import os
 import re
 
-BASE_DIR = "./data/05_11"
+BASE_DIR = "./data/last"
 
 
 def iter_dir(base):
@@ -24,30 +25,14 @@ def mkdir(path):
         print(f"---  mkdir new folder：{path}  ---")
 
 
-def is_blank(it):
-    if not it or (isinstance(it, str) and it.isspace()) or len(it) == 0:
-        return True
-    return False
-
-
-def is_not_blank(it):
-    return not is_blank(it)
-
-
-def data_filter(data_str: str):
-    # 替换  cwRong
-    data_str = data_str.replace("cwRong", "RongGPT")
-    return data_str
-
-
-TEMPLATE_NO_INPUT = "Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n### Instruction:\n{}\n\n### Response:"
-TEMPLATE_WITH_INPUT = "Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.\n\n### Instruction:\n{}\n\n### Input:\n{}\n\n### Response:"
-TEMPLATE_CHAT = "If you are a artificial intelligence assistant, please answer the user questions based on the user asks and descriptions.History:{}\n\nUser:{}\nnAssistant"
-TEMPLATE_CONTEXT_CHAT = "If you are a artificial intelligence assistant, please answer the user questions based on the user asks and descriptions.Context:{}\nHistory:{}\n\nUser:{}\n\nAssistant:"
+TEMPLATE_NO_INPUT = "If you are a artificial intelligence assistant assistant whose name is CongRong. CongRong is a conversational language model that is developed by CloudWalk.It is designed to be helpful,honest and harmless.Please answer the user questions based on the user asks and descriptions.\n\n\nUser:{}\n\nAssistant:"
+TEMPLATE_WITH_INPUT = "If you are a artificial intelligence assistant assistant whose name is CongRong. CongRong is a conversational language model that is developed by CloudWalk.It is designed to be helpful,honest and harmless.Please answer the user questions based on the user asks and descriptions.\n\n\nContext: {}\n\nUser:{}\n\nAssistant:"
+TEMPLATE_CHAT = "If you are a artificial intelligence assistant assistant whose name is CongRong. CongRong is a conversational language model that is developed by CloudWalk.It is designed to be helpful,honest and harmless.Please answer the user questions based on the user asks and descriptions.\n\n\nHistory:{}\n\nUser:{}\n\nAssistant:"
+TEMPLATE_CONTEXT_CHAT = "If you are a artificial intelligence assistant assistant whose name is CongRong. CongRong is a conversational language model that is developed by CloudWalk.It is designed to be helpful,honest and harmless.Please answer the user questions based on the user asks and descriptions.\n\n\nContext: {}\n\nHistory:{}\n\nUser:{}\n\nAssistant:"
 
 if __name__ == '__main__':
     for f_name, name in iter_dir(BASE_DIR):
-        if f_name.endswith(".json"):
+        if f_name.endswith(".json.2"):
             # 获取输出文件及文件夹
             format_file = f_name.replace(BASE_DIR, BASE_DIR + "_format")
             format_dir = format_file.replace(name, "")
@@ -66,20 +51,20 @@ if __name__ == '__main__':
                 for data_item in fcc_data:
                     history = data_item["history"]
                     question = data_item["question"].strip()
-                    context = data_item["context"].strip()
+                    context = data_item["content"].strip()
                     output = data_item["output"].strip()
 
-                    # 处理异常数据
-                    if is_blank(question) or is_blank(output):
-                        continue
+                    if history == "[]":
+                        history = ""
+                    if filter.is_not_blank(history):
+                        history = json.loads(history)
 
-                    # 结束符为？ ?的移除
-                    last_char = output[-1]
-                    if last_char == "?" or last_char == "？":
+                    # 处理异常数据
+                    if filter.is_continue(question, output):
                         continue
 
                     # 根据数据选择合适的模版
-                    if is_not_blank(history) and is_not_blank(context):
+                    if filter.is_not_blank(history) and filter.is_not_blank(context):
                         history_str = ""
                         for his_it in history:
                             user = "User:" + his_it["User"].strip() + "\n\n"
@@ -91,7 +76,7 @@ if __name__ == '__main__':
                             prompt=template.format(context, history_str, question),
                             output=output
                         )
-                    elif is_not_blank(history):
+                    elif filter.is_not_blank(history):
                         history_str = ""
                         for his_it in history:
                             user = "User:" + his_it["User"].strip() + "\n\n"
@@ -103,7 +88,7 @@ if __name__ == '__main__':
                             prompt=template.format(history_str, question),
                             output=output
                         )
-                    elif is_not_blank(context):
+                    elif filter.is_not_blank(context):
                         template = TEMPLATE_WITH_INPUT
                         # 格式化写入文件
                         result = dict(
@@ -118,7 +103,7 @@ if __name__ == '__main__':
                             output=output
                         )
                     data = json.dumps(result, ensure_ascii=False)
-                    data = data_filter(data)
+                    data = filter.data_filter(data)
                     f.write(data)
                     f.write("\n")
                     total_lie += 1
