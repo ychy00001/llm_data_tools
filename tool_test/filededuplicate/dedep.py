@@ -1,6 +1,7 @@
 import os
 import json
 import psycopg2
+import time
 
 # 用来配置的变量
 base_dir = "./baike"
@@ -16,11 +17,30 @@ def is_blank(it):
     return False
 
 
-def add_db(title, desc, summary, basic_info, other_info, additional_info):
-    cur.execute(f"INSERT INTO baike (title,'desc',summary,basic_info,other_info,additional_info) " +
-                f"VALUES ('{title}', '{desc}', '{summary}', '{basic_info}', '{other_info}', '{additional_info}' )")
+def add_db(title, desc, summary, basic_info, other_info, additional_info, file_item):
+    cur.execute(f"INSERT INTO baike (title,'desc',summary,basic_info,other_info,additional_info, file_name, origin) " +
+                f"VALUES ('{title}', '{desc}', '{summary}', '{basic_info}', '{other_info}', '{additional_info}', '{file_item}', 'buy_baike' )")
     conn.commit()
-    pass
+
+
+def format_result_str(title, desc, summary, basic_info, other_info):
+    basic_info_str = list_str(basic_info, "")
+    other_info_str = list_str(other_info, "")
+    result = f'{title}\n\n{desc}\n{summary}\n{basic_info_str}\n{other_info_str}'
+    return result
+
+
+def list_str(info_list, start_str):
+    for info_item in info_list:
+        key = info_item['key']
+        value = info_item['value']
+        if key != "introduction":
+            start_str += ("," + key)
+        if isinstance(value, list):
+            list_str(value, start_str)
+        else:
+            start_str += ("," + value)
+    return start_str
 
 
 if __name__ == '__main__':
@@ -43,25 +63,48 @@ if __name__ == '__main__':
         # 读取、分行、去重、写入
         i = 0
         for item_line in open(file_item):
-            i += 1
-            line = item_line.strip()
-            if is_blank(line):
-                continue
+            base_file_name = os.path.basename(file_item)
+            with open(file_item + "_format", "a", encoding='utf-8') as f:
+                i += 1
+                line = item_line.strip()
+                if is_blank(line):
+                    continue
 
-            line_json = json.loads(line)
+                line_json = json.loads(line)
 
-            title = line_json["title"]
-            desc = line_json["desc"]
-            summary = line_json["summary"]
-            basic_info = line_json["basic_info"]
-            other_info = line_json["other_info"]
-            additional_info = line_json["additional_info"]
+                title = line_json["title"]
+                desc = line_json["desc"]
+                summary = line_json["summary"]
+                basic_info = line_json["basic_info"]
+                other_info = line_json["other_info"]
+                additional_info = line_json["additional_info"]
 
-            # 写入数据库 忽略重复异常
-            add_db(title, desc, summary, basic_info, other_info, additional_info)
+                # 写入数据库 TODO 跳过数据库的重复异常
+                add_db(title, desc, summary, basic_info, other_info, additional_info, base_file_name)
 
-            percent = i / line_count * 10
-            if percent == int(percent):
-                print(f"已完成{int(percent) * 10}%")
+                # 写入文件
+                format_text = format_result_str(title, desc, summary, basic_info, other_info)
+                result = {
+                    "text": format_text,
+                    "meta": {
+                        "source": "baike",
+                        "subset": "buy_baike_20M",
+                        "type": "baike",
+                        "title": title,
+                        "lang": "zh",
+                        "fileIdx": base_file_name,
+                        "idx": i,  # 本文件内的数据序号，类似于行数
+                        "titleKey": hash(title),
+                        "id": hash(format_text),  # text的hash
+                        "timestamp": int(round(time.time() * 1000))
+                    }
+                }
+
+                data = json.dumps(result, ensure_ascii=False)
+                f.write(data)
+                f.write("\n")
+                percent = i / line_count * 10
+                if percent == int(percent):
+                    print(f"已完成{int(percent) * 10}%")
 
     print("———— 结束 ————")
