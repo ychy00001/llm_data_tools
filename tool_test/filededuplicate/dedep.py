@@ -5,7 +5,7 @@ import time
 
 # 用来配置的变量
 base_dir = "./baike"
-conn = psycopg2.connect(database="postgres", user="postgres", password="qewr1234", host="172.17.0.1", port="15432")
+conn = psycopg2.connect(database="postgres", user="postgres", password="qewr1234", host="172.17.0.1", port="8432")
 print("Opened database successfully")
 
 cur = conn.cursor()
