@@ -1,4 +1,9 @@
 import re
+from flashtext import KeywordProcessor
+import sys
+sys.path.append("..")
+from yanwenzi.yanwenzi import Yanwenzi
+import emoji
 
 
 def is_continue(question, answer):
@@ -48,6 +53,13 @@ def data_filter(data_str: str):
     return data_str
 
 
+def is_contains_chinese(strs):
+    for _char in strs:
+        if '\u4e00' <= _char <= '\u9fa5':
+            return True
+    return False
+
+
 def process_7ke(data_str: str):
     # 替换<br/>为\n
     data_str = data_str.replace("<br/>", "\\n")
@@ -76,3 +88,62 @@ def truncate_str(txt, length):
     if len(txt) > length:
         txt = txt[:len]
     return txt
+
+
+############################脏词判断##############
+
+dirty_char_processor = KeywordProcessor(case_sensitive=True)
+dirty_list = ["catIdx=", "px", "（）", "display=", "hn=", "rm=", "rthumb", "jenolan", "right", "f=y", "图片", "下图", "配图",
+              "PS：", "表格", "回购", "来源：", "(图)", "网络赌博", "视频", "今年", "今日", "公布", "组图", "刚刚过去的20", "北京时间",
+              "目前", "日报道", "原标题", "沪指", "下跌", "股票", "昨日", "[微博]", "请访问", "[1]", "大家好", "一起来看一下", "对于此事",
+              "www"]
+dirty_char_processor.add_keywords_from_list(dirty_list)
+
+ywz_data = open("../yanwenzi/data/yanwenzi.json", "r", encoding="utf-8").read()
+ywz_data = eval(ywz_data)
+ywz = Yanwenzi(ywz_data)
+
+
+def is_dirty(title, content):
+    return contains_dirty_char(title, content) or contains_yanwenzi(content) or contains_repeat_char(
+        content) or contains_emoji(content)
+
+
+def contains_dirty_char(title, content):
+    if title == "基本资料" or title == "注":
+        return True
+    if title == "真．三国无双7 Blast" or title == "例如":
+        return True
+    if title.startswith("电视动画版") or title.startswith("注："):
+        return True
+    if '今年' in content:
+        return True
+    dirty_found = dirty_char_processor.extract_keywords(content)
+    if len(dirty_found) > 0:
+        return True
+    return False
+
+
+def contains_yanwenzi(content):
+    result = ywz.detect(content)
+    if len(result) > 0:
+        return True
+    return False
+
+
+def contains_repeat_char(content):
+    """检查某句话中是否有过多的某字符（多出现于wiki的表格中）"""
+    for space in ["-", "\n", "\t", "/", "_", "！", "~"]:
+        num_space = content.count(space)
+        if num_space > 7 or (num_space > 2 and num_space > len(content) // 10):
+            return True
+    return False
+
+
+def contains_emoji(text):
+    emoji_list = emoji.emoji_list(text)
+    print(emoji_list)
+    if len(emoji_list) > 0:
+        return True
+    return False
+############################脏词判断##############

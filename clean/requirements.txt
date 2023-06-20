@@ -1,0 +1,3 @@
+flashtext
+emoji
+jieba_fast

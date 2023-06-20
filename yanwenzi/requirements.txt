@@ -1,0 +1,5 @@
+tqdm==4.65.0
+jieba_fast==0.53
+flashtext
+rouge==1.0.1
+numpy
