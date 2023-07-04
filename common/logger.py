@@ -1,5 +1,6 @@
 import logging
 from logging import handlers
+import os
 
 
 class Logger(object):
@@ -12,9 +13,11 @@ class Logger(object):
     }  # 日志级别关系映射
 
     def __init__(self, filename, level='info', when='D', backCount=3,
-                 fmt='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s'):
+                 fmt='%(processName)s %(threadName)s: %(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s'):
         self.logger = logging.getLogger(filename)
         format_str = logging.Formatter(fmt)  # 设置日志格式
+        if level == "info" and os.getenv('LOG_LEVEL') == "DEBUG":
+            level = "debug"
         self.logger.setLevel(self.level_relations.get(level))  # 设置日志级别
         sh = logging.StreamHandler()  # 往屏幕上输出
         sh.setFormatter(format_str)  # 设置屏幕上显示的格式
