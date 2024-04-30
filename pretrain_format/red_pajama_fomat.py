@@ -3,16 +3,15 @@ import os
 import json
 import time
 import shutil
+import hashlib
 from json.decoder import JSONDecodeError
 from multiprocessing import Pool
 
 sys.path.append("..")
 from common.logger import Logger
-from common.filter import is_dirty
 from common.utils import get_all_files
-
 os.makedirs("./log", exist_ok=True)
-log = Logger('./log/content_dirty_clean_multi.log', level='info')
+log = Logger('./log/red_pajamas.log', level='debug')
 
 
 def process_log(current_percent, percent_step, file_name, current_line, line_count, repeat_count, error_count,
@@ -27,10 +26,15 @@ def process_log(current_percent, percent_step, file_name, current_line, line_cou
     return current_percent
 
 
+def is_blank(it):
+    if not it or (isinstance(it, str) and it.isspace()) or len(it) == 0:
+        return True
+    return False
+
+
 def run(job):
     file_item = job[0]
     file_item_format = job[1]
-    file_item_dirty = job[2]
     base_file_name = os.path.basename(file_item)
 
     # 跳过整个文件
@@ -51,8 +55,7 @@ def run(job):
     current_percent = 0
     total_dirty_info = {}
     # 读取数据
-    with open(file_item_format, "a", encoding='utf-8') as f, open(
-            file_item_dirty, "a", encoding='utf-8') as f1:
+    with open(file_item_format, "a", encoding='utf-8') as f:
         for item_line in open(file_item, 'r', encoding='utf8'):
             try:
                 line_json = json.loads(item_line, strict=False)
@@ -74,36 +77,41 @@ def run(job):
 
             text = line_json["text"]
             meta = line_json["meta"]
+            lang = "en"
+            title = ""
+            subset = "RedPajama"
+            # book
+            if "short_book_title" in meta:
+                title = meta["short_book_title"]
+                subset = "book"
+            # c4
+            if "language" in meta:
+                lang = meta["language"]
 
-            dirty_type = is_dirty(meta["title"], text)
-            if dirty_type:
-                if dirty_type in total_dirty_info.keys():
-                    total_dirty_info[dirty_type] = total_dirty_info[dirty_type] + 1
-                else:
-                    total_dirty_info[dirty_type] = 1
+            # 子集
+            if "source" in meta:
+                subset = meta["source"]
 
-                log.logger.debug(f'脏数据{dirty_type}：{item_line[:200]}')
-                f1.write(dirty_type + " " + item_line)
-                current_percent = process_log(current_percent, percent_step, file_item, current_line, line_count,
-                                              repeat,
-                                              error, blank, dirty)
-                continue
+            if not text.startswith(title):
+                text = title + "\n\n" + text
+
 
             current_line += 1
             # 写入文件
             result = {
                 "text": text,
                 "meta": {
-                    "source": meta["source"],
-                    "subset": meta["subset"],
-                    "type": meta["type"],
-                    "title": meta["title"],
-                    "lang": meta["lang"],
-                    "fileIdx": meta["fileIdx"],
+                    "source": "RedPajama-Data",
+                    "subset": subset,
+                    "type": subset,
+                    "title": title,
+                    "lang": lang,
+                    "fileIdx": base_file_name,
                     "idx": current_line,  # 本文件内的数据序号，类似于行数
-                    "titleKey": meta["titleKey"],
-                    "id": meta["id"],  # text的hash
-                    "timestamp": meta["timestamp"]
+                    "titleKey": title if title == "" else hashlib.md5(
+                        title.encode(encoding='utf-8')).hexdigest(),  # text的hash,
+                    "id": hashlib.md5(text.encode(encoding='utf-8')).hexdigest(),  # text的hash
+                    "timestamp": int(round(time.time() * 1000))
                 }
             }
 
@@ -116,16 +124,17 @@ def run(job):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("请设置待清洗目录")
-    pre_file = sys.argv[1]
+    # if len(sys.argv) < 2:
+    #     print("请设置待清洗目录")
+    # pre_file = sys.argv[1]
+    pre_file = "RedPajama"
     # 无最后斜杠
     base_dir = "/data/project/llm_data_tools/data/" + pre_file
 
     # Get all jobs.
     # Each job corresponds to a file ends with .gz, with middle or head in it
     #
-    jobs = get_all_files(base_dir, suffix1="_clean", suffix2="_dirty")
+    jobs = get_all_files(base_dir, suffix1="_format")
     # print("TOTAL # JOBS:", len(jobs))
     # 线程池数
     pool_num = len(jobs)
@@ -134,8 +143,17 @@ if __name__ == '__main__':
     # 跳过文件
     skip_dict = {
     }
-    # log.logger.info("———— 开始 ————")
-    # process(base_dir, format_dir, dirty_dir, "", "")
-    # log.logger.info("———— 结束 ————")
+
     with Pool(pool_num) as p:
         p.map(run, jobs)
+
+
+    # 无最后斜杠
+    # base_dir = "/data/project/llm_data_tools/data/RedPajama"
+    # format_dir = base_dir + "_format/"
+    # # 跳过文件
+    # skip_dict = {
+    # }
+    # log.logger.info("———— 开始 ————")
+    # process(base_dir, format_dir, "", "")
+    # log.logger.info("———— 结束 ————")

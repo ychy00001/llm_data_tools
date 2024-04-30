@@ -5,14 +5,16 @@ import time
 import shutil
 from json.decoder import JSONDecodeError
 from multiprocessing import Pool
+import re
 
 sys.path.append("..")
 from common.logger import Logger
-from common.filter import is_dirty
+from common.filter import is_dirty_book, is_dirty_news, is_dirty_exam, is_dirty_web
+from common.filter import preprocess_title_content, preprocess_news_title_content
 from common.utils import get_all_files
 
 os.makedirs("./log", exist_ok=True)
-log = Logger('./log/content_dirty_clean_multi.log', level='info')
+log = Logger('./log/wanjuan_dirty_clean_multi.log', level='info')
 
 
 def process_log(current_percent, percent_step, file_name, current_line, line_count, repeat_count, error_count,
@@ -50,6 +52,7 @@ def run(job):
     percent_step = 10
     current_percent = 0
     total_dirty_info = {}
+    log.logger.info(f"正在处理：{file_item}")
     # 读取数据
     with open(file_item_format, "a", encoding='utf-8') as f, open(
             file_item_dirty, "a", encoding='utf-8') as f1:
@@ -75,15 +78,31 @@ def run(job):
             text = line_json["text"]
             meta = line_json["meta"]
 
-            dirty_type = is_dirty(meta["title"], text)
-            if dirty_type:
+            if meta["type"] == "book":
+                meta["title"], text = preprocess_title_content(meta["title"], text)
+                dirty_info = is_dirty_book(meta["title"], text)
+            elif meta["type"] == "news":
+                meta["title"], text = preprocess_news_title_content(meta["title"], text)
+                meta["title"], text = preprocess_title_content(meta["title"], text)
+                dirty_info = is_dirty_news(meta["title"], text)
+            elif meta["type"] == "exam":
+                # 书用正则匹配很慢 匹配题库去除横岗
+                meta["title"], text = preprocess_title_content(meta["title"], text)
+                dirty_info = is_dirty_exam(meta["title"], text)
+            elif meta["type"] == "web":
+                meta["title"], text = preprocess_news_title_content(meta["title"], text)
+                meta["title"], text = preprocess_title_content(meta["title"], text)
+                dirty_info = is_dirty_web(meta["title"], text)
+            if dirty_info:
+                dirty_type = dirty_info.split("\t")[0]
                 if dirty_type in total_dirty_info.keys():
                     total_dirty_info[dirty_type] = total_dirty_info[dirty_type] + 1
                 else:
                     total_dirty_info[dirty_type] = 1
 
-                log.logger.debug(f'脏数据{dirty_type}：{item_line[:200]}')
-                f1.write(dirty_type + " " + item_line)
+                log.logger.debug(f'脏数据{dirty_info}：{item_line[:200]}')
+                dirty_info = dirty_info.replace("\n", " ")
+                f1.write(dirty_info + " " + item_line)
                 current_percent = process_log(current_percent, percent_step, file_item, current_line, line_count,
                                               repeat,
                                               error, blank, dirty)
@@ -116,11 +135,14 @@ def run(job):
 
 
 if __name__ == '__main__':
+    # nohup python wudao_dirty_clean_multi.py > log/wudao_dirty_muti.out 2>&1 &
+    # pre_file = "WanJuan1.0/TextBook-cn_format"
     if len(sys.argv) < 2:
         print("请设置待清洗目录")
     pre_file = sys.argv[1]
+    # pre_file = "ChinaNews-cn_format"
     # 无最后斜杠
-    base_dir = "/data/project/llm_data_tools/data/" + pre_file
+    base_dir = "/data/project/llm_data_tools/data/WanJuan1.0/" + pre_file
 
     # Get all jobs.
     # Each job corresponds to a file ends with .gz, with middle or head in it
@@ -129,8 +151,8 @@ if __name__ == '__main__':
     # print("TOTAL # JOBS:", len(jobs))
     # 线程池数
     pool_num = len(jobs)
-    if pool_num > 50:
-        pool_num = 50
+    if pool_num > 120:
+        pool_num = 120
     # 跳过文件
     skip_dict = {
     }

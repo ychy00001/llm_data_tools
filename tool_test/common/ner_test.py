@@ -14,10 +14,11 @@ if __name__ == '__main__':
     #     print("是中文人名")
     # else:
     #     print("不是中文人名")
-    res1 = fool.analysis("甘良均")
+    tmp_txt = "曹福来"
+    res1 = fool.analysis(tmp_txt)
     print("\n")
     print(res1)
-    if res1[1] and res1[1][0] and res1[1][0][0] and res1[1][0][0][2] and res1[1][0][0][2] == "person":
+    if res1[1] and res1[1][0] and res1[1][0][0] and res1[1][0][0][2] and res1[1][0][0][2] == "person" and res1[1][0][0][3] == tmp_txt:
         print("是中文人名")
     else:
         print("不是中文人名")
@@ -26,13 +27,14 @@ if __name__ == '__main__':
     # print(res2[0])
     # print(res2[1][0])
 
-    res3 = fool.analysis("广州橙悦健身有限公司")
+    res3 = fool.analysis("深圳市某某某科技有限公司")
     print(res3)
-    if res3[1] and res3[1][0] and res3[1][0][0] and res3[1][0][0][2] and res3[1][0][0][2] == "company":
+    if res3[1] and res3[1][0] and res3[1][0][0] and res3[1][0][0][2] and res3[1][0][0][2] == "company" and res1[1][0][0][3] == tmp_txt:
         print("是中文公司")
     else:
         print("不是中文公司")
-    # tool = NerTool()
+
+    tool = NerTool()
     #
     # res = tool.get_ner(text)
     # print("\n")
@@ -48,13 +50,14 @@ if __name__ == '__main__':
     #     print(f"{text1} 是英文人名")
     # else:
     #     print(f"{text1} 不是英文人名")
-    # res2 = tool.get_ner(text2)
-    # print("\n")
-    # print(res2)
-    # if res2 and res2[0] and res2[0][1] and res2[0][1] == "PERSON":
-    #     print(f"{text2} 是英文人名")
-    # else:
-    #     print(f"{text2} 不是英文人名")
-    #
+    en_tmp = "Ego Sensation"
+    res2 = tool.get_ner_en(en_tmp)
+    print("\n")
+    print(res2)
+    if res2 and res2[0] and res2[0][1] and res2[0][1] == "PERSON":
+        print(f"{en_tmp} 是英文人名")
+    else:
+        print(f"{en_tmp} 不是英文人名")
+
 
 

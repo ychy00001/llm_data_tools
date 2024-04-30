@@ -3,13 +3,14 @@ from multiprocessing import Pool
 import re
 import time
 import os
-from common.utils import cut_sent
+from common.utils import cut_sent, truncate_content, word_count
 from common.log import logger
 
 
 class SimhashTool:
 
-    def __init__(self, hash_k=8, hash_f=128, width=5, max_hash_len=0, n_jobs=2):
+    def __init__(self, hash_k=10, hash_f=128, width=4, max_hash_len=80, n_jobs=2):
+        # 初始化hash索引  k=海明距离 越大表示相似内容判断的误差越大，就是将更大不太相似的判断为相似
         self.hash_k = hash_k
         self.hash_f = hash_f
         self.width = width
@@ -53,13 +54,13 @@ class SimhashTool:
         hashes = []
         members = []
         for idx, i in enumerate(sent_list):
+            # 超过256个句子的数据不进行匹配
+            if idx > 256:
+                break
             try:
-                # 截取最多前100提高效率
-                member = i[:80]
-                if self.max_hash_len == 0:
-                    hashes.append((str(idx), Simhash(self.__get_features(i), f=self.hash_f)))
-                else:
-                    hashes.append((str(idx), Simhash(self.__get_features(i[:self.max_hash_len]))))
+                # 截取最多前100提高效率 中英文区分
+                member = truncate_content(i, self.max_hash_len)
+                hashes.append((str(idx), Simhash(self.__get_features(member), f=self.hash_f)))
                 members.append(member)
             except:
                 continue
@@ -93,7 +94,13 @@ class SimhashTool:
         获取一大段内容中相似的句子或者段落
         '''
         sent_list = cut_sent(content)
-        value_dict, mem_hashes = self.get_mem_hash(sent_list)
+        reformat_list = []
+        # 避免频繁的小数据造成hash桶太大
+        for i in sent_list:
+            w_count = word_count(i)
+            if w_count > 5:
+                reformat_list.append(i)
+        value_dict, mem_hashes = self.get_mem_hash(reformat_list)
         # 查看相似文本
         result = []
         for mem, a_hash in mem_hashes:

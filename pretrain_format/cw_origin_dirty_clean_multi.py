@@ -8,11 +8,12 @@ from multiprocessing import Pool
 
 sys.path.append("..")
 from common.logger import Logger
-from common.filter import is_dirty
+from common.filter import is_dirty_cw, preprocess_title_content
 from common.utils import get_all_files
+import hashlib
 
 os.makedirs("./log", exist_ok=True)
-log = Logger('./log/content_dirty_clean_multi.log', level='info')
+log = Logger('./log/cw_origin_dirty_clean_multi.log', level='info')
 
 
 def process_log(current_percent, percent_step, file_name, current_line, line_count, repeat_count, error_count,
@@ -53,16 +54,12 @@ def run(job):
     # 读取数据
     with open(file_item_format, "a", encoding='utf-8') as f, open(
             file_item_dirty, "a", encoding='utf-8') as f1:
-        for item_line in open(file_item, 'r', encoding='utf8'):
-            try:
-                line_json = json.loads(item_line, strict=False)
-            except JSONDecodeError as e:
-                error += 1
-                log.logger.error(f'JSON解析异常：{item_line}')
-                current_percent = process_log(current_percent, percent_step, file_item, current_line, line_count,
-                                              repeat,
-                                              error, blank, dirty)
-                continue
+        with open(file_item, 'r', encoding='utf-8') as fcc_file:
+            fcc_data = json.load(fcc_file)
+
+        result_data = []
+        for line_json in fcc_data:
+            item_line = json.dumps(line_json, ensure_ascii=False)
             # 跳过行数
             if base_file_name in skip_dict.keys():
                 if skip_dict[base_file_name] > current_line:
@@ -72,10 +69,12 @@ def run(job):
                 elif skip_dict[base_file_name] == current_line:
                     log.logger.info(f"\n文件：{base_file_name}跳过:{skip_dict[base_file_name]}行")
 
-            text = line_json["text"]
-            meta = line_json["meta"]
+            title = line_json["question"]
+            text = line_json["output"]
+            source = line_json["source"]
+            lang = line_json["lang"]
 
-            dirty_type = is_dirty(meta["title"], text)
+            dirty_type = is_dirty_cw(title, text)
             if dirty_type:
                 if dirty_type in total_dirty_info.keys():
                     total_dirty_info[dirty_type] = total_dirty_info[dirty_type] + 1
@@ -83,49 +82,58 @@ def run(job):
                     total_dirty_info[dirty_type] = 1
 
                 log.logger.debug(f'脏数据{dirty_type}：{item_line[:200]}')
-                f1.write(dirty_type + " " + item_line)
+                f1.write(dirty_type + " " + item_line +"\n")
                 current_percent = process_log(current_percent, percent_step, file_item, current_line, line_count,
                                               repeat,
                                               error, blank, dirty)
                 continue
 
             current_line += 1
-            # 写入文件
-            result = {
-                "text": text,
-                "meta": {
-                    "source": meta["source"],
-                    "subset": meta["subset"],
-                    "type": meta["type"],
-                    "title": meta["title"],
-                    "lang": meta["lang"],
-                    "fileIdx": meta["fileIdx"],
-                    "idx": current_line,  # 本文件内的数据序号，类似于行数
-                    "titleKey": meta["titleKey"],
-                    "id": meta["id"],  # text的hash
-                    "timestamp": meta["timestamp"]
-                }
-            }
 
-            data = json.dumps(result, ensure_ascii=False)
-            f.write(data)
-            f.write("\n")
+            # if not text.startswith(title):
+            #     text = title + "\n\n" + text
+            # # 写入文件
+            # result = {
+            #     "text": text,
+            #     "meta": {
+            #         "source": "qa",
+            #         "subset": source,
+            #         "type": "qa",
+            #         "title": title,
+            #         "lang": lang,
+            #         "fileIdx": base_file_name,
+            #         "idx": current_line,  # 本文件内的数据序号，类似于行数
+            #         "titleKey": hashlib.md5(title.encode(encoding='utf-8')).hexdigest(),  # text的hash,
+            #         "id": hashlib.md5(text.encode(encoding='utf-8')).hexdigest(),  # text的hash
+            #         "timestamp": int(round(time.time() * 1000))
+            #     }
+            # }
+
+            # data = json.dumps(result, ensure_ascii=False)
+            # f.write(data)
+            # f.write("\n")
+            result_data.append(line_json)
             current_percent = process_log(current_percent, percent_step, file_item,
                                           current_line, line_count, repeat, error, blank, dirty)
+        data = json.dumps(result_data, ensure_ascii=False)
+        f.write(data)
+
     log.logger.info(f"总信息：{total_dirty_info}")
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("请设置待清洗目录")
-    pre_file = sys.argv[1]
+    # nohup python cw_origin_dirty_clean_multi.py > log/cw_origin_dirty_muti.out 2>&1 &
+    # if len(sys.argv) < 2:
+    #     print("请设置待清洗目录")
+    # pre_file = sys.argv[1]
+    pre_file = "cw"
     # 无最后斜杠
     base_dir = "/data/project/llm_data_tools/data/" + pre_file
 
     # Get all jobs.
     # Each job corresponds to a file ends with .gz, with middle or head in it
     #
-    jobs = get_all_files(base_dir, suffix1="_clean", suffix2="_dirty")
+    jobs = get_all_files(base_dir, suffix1="_clean_origin", suffix2="_dirty_origin")
     # print("TOTAL # JOBS:", len(jobs))
     # 线程池数
     pool_num = len(jobs)

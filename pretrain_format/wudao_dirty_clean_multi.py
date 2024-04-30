@@ -5,14 +5,16 @@ import time
 import shutil
 from json.decoder import JSONDecodeError
 from multiprocessing import Pool
+import re
 
 sys.path.append("..")
 from common.logger import Logger
-from common.filter import is_dirty
+from common.filter import is_dirty_wudao
+from common.filter import preprocess_title_content
 from common.utils import get_all_files
 
 os.makedirs("./log", exist_ok=True)
-log = Logger('./log/content_dirty_clean_multi.log', level='info')
+log = Logger('./log/wudao_dirty_clean_multi.log', level='info')
 
 
 def process_log(current_percent, percent_step, file_name, current_line, line_count, repeat_count, error_count,
@@ -74,16 +76,18 @@ def run(job):
 
             text = line_json["text"]
             meta = line_json["meta"]
-
-            dirty_type = is_dirty(meta["title"], text)
-            if dirty_type:
+            meta["title"], text = preprocess_title_content(meta["title"], text)
+            dirty_info = is_dirty_wudao(meta["title"], text)
+            if dirty_info:
+                dirty_type = dirty_info.split("\t")[0]
                 if dirty_type in total_dirty_info.keys():
                     total_dirty_info[dirty_type] = total_dirty_info[dirty_type] + 1
                 else:
                     total_dirty_info[dirty_type] = 1
 
-                log.logger.debug(f'脏数据{dirty_type}：{item_line[:200]}')
-                f1.write(dirty_type + " " + item_line)
+                log.logger.debug(f'脏数据{dirty_info}：{item_line[:200]}')
+                dirty_info = dirty_info.replace("\n", " ")
+                f1.write(dirty_info + " " + item_line)
                 current_percent = process_log(current_percent, percent_step, file_item, current_line, line_count,
                                               repeat,
                                               error, blank, dirty)
@@ -116,9 +120,8 @@ def run(job):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("请设置待清洗目录")
-    pre_file = sys.argv[1]
+    # nohup python wudao_dirty_clean_multi.py > log/wudao_dirty_muti.out 2>&1 &
+    pre_file = "wudao_v2"
     # 无最后斜杠
     base_dir = "/data/project/llm_data_tools/data/" + pre_file
 
@@ -129,8 +132,8 @@ if __name__ == '__main__':
     # print("TOTAL # JOBS:", len(jobs))
     # 线程池数
     pool_num = len(jobs)
-    if pool_num > 50:
-        pool_num = 50
+    if pool_num > 120:
+        pool_num = 120
     # 跳过文件
     skip_dict = {
     }

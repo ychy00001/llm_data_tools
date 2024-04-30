@@ -8,7 +8,6 @@ from yanwenzi.yanwenzi import Yanwenzi
 
 def contains_emoji(text):
     emoji_list = emoji.emoji_list(text)
-    print(emoji_list)
     if len(emoji_list) > 0:
         return True
     return False

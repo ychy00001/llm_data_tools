@@ -8,11 +8,11 @@ from multiprocessing import Pool
 
 sys.path.append("..")
 from common.logger import Logger
-from common.filter import is_dirty
+from common.filter import is_dirty_csl, preprocess_title_content
 from common.utils import get_all_files
 
 os.makedirs("./log", exist_ok=True)
-log = Logger('./log/content_dirty_clean_multi.log', level='info')
+log = Logger('./log/csl_dirty_clean_multi.log', level='info')
 
 
 def process_log(current_percent, percent_step, file_name, current_line, line_count, repeat_count, error_count,
@@ -75,7 +75,9 @@ def run(job):
             text = line_json["text"]
             meta = line_json["meta"]
 
-            dirty_type = is_dirty(meta["title"], text)
+            text = preprocess_title_content(text)
+
+            dirty_type = is_dirty_csl(meta["title"], text)
             if dirty_type:
                 if dirty_type in total_dirty_info.keys():
                     total_dirty_info[dirty_type] = total_dirty_info[dirty_type] + 1
@@ -116,9 +118,11 @@ def run(job):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("请设置待清洗目录")
-    pre_file = sys.argv[1]
+    # nohup python csl_dirty_clean_multi.py > log/csl_dirty_muti.out 2>&1 &
+    # if len(sys.argv) < 2:
+    #     print("请设置待清洗目录")
+    # pre_file = sys.argv[1]
+    pre_file = "csl_format"
     # 无最后斜杠
     base_dir = "/data/project/llm_data_tools/data/" + pre_file
 

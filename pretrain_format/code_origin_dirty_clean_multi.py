@@ -8,11 +8,12 @@ from multiprocessing import Pool
 
 sys.path.append("..")
 from common.logger import Logger
-from common.filter import is_dirty
+from common.filter import is_dirty_code, preprocess_title_content
 from common.utils import get_all_files
+import hashlib
 
 os.makedirs("./log", exist_ok=True)
-log = Logger('./log/content_dirty_clean_multi.log', level='info')
+log = Logger('./log/code_origin_dirty_clean_multi.log', level='info')
 
 
 def process_log(current_percent, percent_step, file_name, current_line, line_count, repeat_count, error_count,
@@ -73,9 +74,12 @@ def run(job):
                     log.logger.info(f"\n文件：{base_file_name}跳过:{skip_dict[base_file_name]}行")
 
             text = line_json["text"]
-            meta = line_json["meta"]
+            stars = line_json["stars"]
+            path = line_json["max_stars_repo_path"]
+            lang = line_json["lang"]
+            ext = line_json["ext"]
 
-            dirty_type = is_dirty(meta["title"], text)
+            dirty_type = is_dirty_code(stars, text)
             if dirty_type:
                 if dirty_type in total_dirty_info.keys():
                     total_dirty_info[dirty_type] = total_dirty_info[dirty_type] + 1
@@ -94,16 +98,16 @@ def run(job):
             result = {
                 "text": text,
                 "meta": {
-                    "source": meta["source"],
-                    "subset": meta["subset"],
-                    "type": meta["type"],
-                    "title": meta["title"],
-                    "lang": meta["lang"],
-                    "fileIdx": meta["fileIdx"],
+                    "source": "code",
+                    "subset": lang,
+                    "type": ext,
+                    "title": path,
+                    "lang": lang,
+                    "fileIdx": base_file_name,
                     "idx": current_line,  # 本文件内的数据序号，类似于行数
-                    "titleKey": meta["titleKey"],
-                    "id": meta["id"],  # text的hash
-                    "timestamp": meta["timestamp"]
+                    "titleKey": hashlib.md5(path.encode(encoding='utf-8')).hexdigest(),  # text的hash,
+                    "id": hashlib.md5(text.encode(encoding='utf-8')).hexdigest(),  # text的hash
+                    "timestamp": int(round(time.time() * 1000))
                 }
             }
 
@@ -116,9 +120,11 @@ def run(job):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("请设置待清洗目录")
-    pre_file = sys.argv[1]
+    # nohup python code_origin_dirty_clean_multi.py > log/code_origin_dirty_muti.out 2>&1 &
+    # if len(sys.argv) < 2:
+    #     print("请设置待清洗目录")
+    # pre_file = sys.argv[1]
+    pre_file = "code"
     # 无最后斜杠
     base_dir = "/data/project/llm_data_tools/data/" + pre_file
 
